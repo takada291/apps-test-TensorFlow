@@ -1,12 +1,16 @@
-// バージョン名を変更して、以前のキャッシュ（音声モデル含む）を破棄させます
-const CACHE_NAME = 'tree-survey-v2.4.1-restore';
+// バージョン名を更新しました（これを変えるとブラウザが「新しい！」と認識して再読み込みします）
+const CACHE_NAME = 'tree-survey-v3.0.1_voice_fix'; 
 const urlsToCache = [
   './',
   'index.html',
   'manifest.json',
   'sw.js',
-  'icon-192.png',  // 念のためアイコンも明示しておくと安心です
-  'icon-512.png'
+  // ▼▼▼ 今回追加した音声認識用のファイルをキャッシュリストに追加 ▼▼▼
+  './voice_model/tf.min.js',
+  './voice_model/speech-commands.min.js',
+  './voice_model/model.json',
+  './voice_model/metadata.json',
+  './voice_model/weights.bin'  // ※スクショのファイル名に合わせています
 ];
 
 self.addEventListener('install', (event) => {
@@ -24,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // 今回のバージョン以外はすべて削除（これで音声モデルの重いデータも消えます）
+          // 今回のバージョン(v3.0.1...)以外はすべて削除してゴミ掃除する
           if (cacheName !== CACHE_NAME) {
              console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -38,6 +42,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
+    // まずネットワークに取りに行き、だめなら(オフラインなら)キャッシュを使う
     fetch(event.request).catch(() => {
       return caches.match(event.request);
     })
