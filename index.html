@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>立木調査</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#28a745">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="立木調査">
+    <link rel="apple-touch-icon" href="icon-192.png?v=4">
+
+    <style>
+        body { font-family: -apple-system, sans-serif; padding: 15px; background: #f0f2f5; color: #333; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; position: relative; }
+        
+        .header-area { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #28a745; margin-bottom: 15px; padding-bottom: 5px; }
+        h2 { margin: 0; font-size: 1.1em; color: #2c3e50; border: none; }
+        .settings-btn { background: #6c757d; color: white; padding: 6px 12px; font-size: 0.85em; border-radius: 6px; border: none; cursor: pointer; }
+
+        #voiceStatus { font-size: 0.8em; color: #fff; background: #333; padding: 5px 12px; border-radius: 20px; margin-bottom: 15px; display: inline-block; }
+        .listening { background: #dc3545 !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .input-row { display: flex; flex-direction: column; margin-bottom: 12px; }
+        .label-group { display: flex; align-items: baseline; margin-bottom: 4px; }
+        .label-group label { width: 110px; font-size: 0.9em; font-weight: bold; }
+        .label-group .guide { font-size: 0.75em; color: #666; font-weight: normal; }
+
+        .input-row input, .input-row select {
+            width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;
+            font-size: 16px; box-sizing: border-box; background-color: white; height: 44px;
+        }
+        
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; }
+        button { flex: 1; min-width: 80px; padding: 14px; font-size: 15px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; }
+        .save-btn { background: #007bff; }
+        .voice-btn { background: #6f42c1; }
+        .export-btn { background: #28a745; }
+        .cancel-btn { background: #6c757d; display: none; }
+        .clear-btn { position: absolute; top: 18px; right: 20px; background: #fff; color: #dc3545; border: 1px solid #dc3545; padding: 4px 8px; font-size: 11px; width: auto; min-width: auto; }
+
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; min-width: 600px; }
+        th, td { border: 1px solid #ddd; padding: 8px 4px; text-align: center; }
+        th { background: #e9ecef; }
+        .action-btns { display: flex; gap: 4px; justify-content: center; }
+        .edit-btn { background: #ffc107; color: #212529; padding: 6px; width: 45px; border-radius: 4px; font-size: 11px; }
+        .del-btn { background: #dc3545; color: white; padding: 6px; width: 45px; border-radius: 4px; font-size: 11px; }
+        .voice-guide-footer { font-size: 0.82em; color: #dc3545; margin-top: 12px; font-weight: bold; text-align: center; background: #fff5f5; padding: 8px; border-radius: 8px; border: 1px dashed #dc3545; }
+
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fff; margin: 15% auto; padding: 20px; border-radius: 12px; width: 85%; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .modal-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px; color: #2c3e50; }
+        .modal-section { margin-bottom: 20px; }
+        .modal-label { font-size: 0.9em; font-weight: bold; margin-bottom: 8px; display: block; color: #333; }
+        .custom-tree-input { margin-bottom: 10px; }
+        .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+        .close-btn { background: #6c757d; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="header-area">
+        <h2 id="formTitle">立木調査 v2.4</h2>
+        <button class="settings-btn" onclick="openSettings()">⚙️ 設定</button>
+    </div>
+
+    <div id="voiceStatus">音声入力：オフ</div>
+    
+    <input type="hidden" id="editId" value="">
+    
+    <div class="input-row">
+        <div class="label-group">
+            <label>プロット番号</label>
+            <span class="guide">※手入力</span>
+        </div>
+        <input type="number" id="plotNo" inputmode="numeric">
+    </div>
+
+    <div class="input-row">
+        <div class="label-group">
+            <label>立木番号</label>
+            <span class="guide">※手入力（入力後は自動連番）</span>
+        </div>
+        <input type="number" id="treeNo" inputmode="numeric">
+    </div>
+
+    <div class="input-row">
+        <div class="label-group">
+            <label>樹種</label>
+            <span class="guide">※発音例「しゅるい すぎ」、追加は設定から</span>
+        </div>
+        <select id="treeType"></select>
+    </div>
+
+    <div class="input-row">
+        <div class="label-group">
+            <label>胸高直径 (cm)</label>
+            <span class="guide">※発音例「ちょっけい さんじゅうろく」</span>
+        </div>
+        <input type="number" step="0.1" id="dbh" inputmode="decimal">
+    </div>
+
+    <div class="input-row">
+        <div class="label-group">
+            <label>樹高 (m)</label>
+            <span class="guide">※発音例「たかさ にじゅうよん」</span>
+        </div>
+        <input type="number" step="0.1" id="height" inputmode="decimal">
+    </div>
+
+    <div class="input-row">
+        <div class="label-group">
+            <label>材質</label>
+            <span class="guide">※発音例「ざいしつ びー」</span>
+        </div>
+        <select id="quality">
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+        </select>
+    </div>
+
+    <div class="input-row">
+        <div class="label-group">
+            <label>備考</label>
+            <span class="guide">※発音例「めも まがり」</span>
+        </div>
+        <input type="text" id="memo">
+    </div>
+    
+    <div class="btn-group">
+        <button id="voiceBtn" class="voice-btn" onclick="toggleVoice()">音声入力開始</button>
+        <button id="saveBtn" class="save-btn" onclick="handleSave()">保存</button>
+        <button id="cancelBtn" class="cancel-btn" onclick="resetForm()">取消</button>
+        <button class="export-btn" onclick="handleExport()">CSV出力</button>
+    </div>
+    <div class="voice-guide-footer">※「ほぞん」と発音すると登録されます。</div>
+</div>
+
+<div class="card">
+    <h2>登録済みデータ</h2>
+    <button class="clear-btn" onclick="handleAllClear()">全データ消去</button>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>P番号</th><th>立木番号</th><th>樹種</th><th>直径</th><th>樹高</th><th>材質</th><th>備考</th><th>操作</th></tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="settingsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">アプリ設定</div>
+        <div class="modal-section">
+            <span class="modal-label">追加樹種（最大5つ）</span>
+            <span style="font-size:0.8em; color:#666; display:block; margin-bottom:5px;">※入力した名前で音声認識も可能です</span>
+            <input type="text" class="custom-tree-input" id="customTree1" placeholder="追加1 (例: マツ)">
+            <input type="text" class="custom-tree-input" id="customTree2" placeholder="追加2 (例: ナラ)">
+            <input type="text" class="custom-tree-input" id="customTree3" placeholder="追加3">
+            <input type="text" class="custom-tree-input" id="customTree4" placeholder="追加4">
+            <input type="text" class="custom-tree-input" id="customTree5" placeholder="追加5">
+        </div>
+        <div class="modal-btns">
+            <button class="save-btn" onclick="saveSettings()">設定保存</button>
+            <button class="close-btn" onclick="closeSettings()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var STORAGE_KEY = 'forest_survey_v2_voice_data';
+    const SETTINGS_KEY = 'forest_survey_settings';
+    
+    const DEFAULT_TREES = ['スギ', 'ヒノキ', '他針', '他広'];
+    let currentSettings = { customTrees: [] };
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+        .then(() => console.log('Service Worker Registered'))
+        .catch(err => console.log('SW Register Error:', err));
+    }
+
+    window.onload = function() {
+        loadSettings();
+        renderTable();
+        
+        if ('speechSynthesis' in window) {
+            const loadVoices = () => { availableVoices = window.speechSynthesis.getVoices(); };
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+            setTimeout(loadVoices, 1000);
+        }
+    };
+
+    function openSettings() {
+        [1,2,3,4,5].forEach((num, idx) => {
+            document.getElementById('customTree'+num).value = currentSettings.customTrees[idx] || "";
+        });
+        document.getElementById('settingsModal').style.display = "block";
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').style.display = "none";
+    }
+
+    function saveSettings() {
+        const newCustomTrees = [];
+        [1,2,3,4,5].forEach(i => {
+            const val = document.getElementById('customTree'+i).value.trim();
+            if(val) newCustomTrees.push(val);
+        });
+        
+        currentSettings = { customTrees: newCustomTrees };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(currentSettings));
+        
+        applySettingsToUI();
+        closeSettings();
+        alert("設定を保存しました");
+        speakText("設定を保存しました");
+    }
+
+    function loadSettings() {
+        const saved = localStorage.getItem(SETTINGS_KEY);
+        if(saved) {
+            currentSettings = JSON.parse(saved);
+        }
+        applySettingsToUI();
+    }
+
+    function applySettingsToUI() {
+        const select = document.getElementById('treeType');
+        const currentVal = select.value;
+        select.innerHTML = "";
+        
+        DEFAULT_TREES.forEach(tree => {
+            const op = document.createElement('option');
+            op.value = tree;
+            op.text = tree;
+            select.appendChild(op);
+        });
+        
+        currentSettings.customTrees.forEach(tree => {
+            const op = document.createElement('option');
+            op.value = tree;
+            op.text = tree;
+            select.appendChild(op);
+        });
+
+        if ([...DEFAULT_TREES, ...currentSettings.customTrees].includes(currentVal)) {
+            select.value = currentVal;
+        }
+    }
+
+    let availableVoices = [];
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const uttr = new SpeechSynthesisUtterance(text);
+            uttr.lang = "ja-JP";
+            uttr.rate = 1.2; 
+
+            if(availableVoices.length === 0) {
+                availableVoices = window.speechSynthesis.getVoices();
+            }
+            let targetVoice = availableVoices.find(v => v.lang === 'ja-JP' && v.localService === true);
+            if (!targetVoice) targetVoice = availableVoices.find(v => v.lang === 'ja-JP');
+            if (targetVoice) uttr.voice = targetVoice;
+            
+            window.speechSynthesis.speak(uttr);
+        }
+    }
+
+    let recognition;
+    let isListening = false;
+    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onresult = (event) => {
+            let lastText = event.results[event.results.length - 1][0].transcript.trim();
+            document.getElementById('voiceStatus').innerText = "認識中: " + lastText;
+            processVoiceCommand(lastText.toLowerCase());
+        };
+
+        recognition.onend = () => { if (isListening) recognition.start(); };
+        
+        recognition.onerror = (event) => {
+            console.log("Voice Error:", event.error);
+            if(event.error === 'network' || event.error === 'not-allowed' || event.error === 'aborted') {
+                if(isListening) toggleVoiceUI(false);
+            }
+        };
+    }
+
+    function toggleVoiceUI(active) {
+        const btn = document.getElementById('voiceBtn');
+        const status = document.getElementById('voiceStatus');
+        isListening = active;
+        if (active) {
+            btn.innerText = "音声入力停止";
+            status.classList.add('listening');
+        } else {
+            btn.innerText = "音声入力開始";
+            status.innerText = "音声入力：オフ";
+            status.classList.remove('listening');
+            if(recognition) recognition.stop();
+        }
+    }
+
+    function toggleVoice() {
+        if (!recognition) return alert("音声認識非対応です");
+        if (!isListening) {
+            try {
+                recognition.start();
+                toggleVoiceUI(true);
+                setTimeout(() => speakText("開始"), 100);
+            } catch (e) {
+                console.error(e);
+                toggleVoiceUI(false);
+            }
+        } else {
+            toggleVoiceUI(false);
+        }
+    }
+
+    function processVoiceCommand(text) {
+        const getNum = (str) => {
+            const m = str.replace(/ /g, "").match(/\d+(\.\d+)?/);
+            return m ? m[0] : null;
+        };
+
+        let matched = false;
+
+        if (text.includes("保存") || text.includes("ほぞん")) {
+            handleSave();
+            speakText("保存");
+            return;
+        }
+
+        if (text.includes("種類") || text.includes("しゅるい")) {
+            let targetType = "";
+            if (text.includes("すぎ") || text.includes("スギ")) targetType = "スギ";
+            else if (text.includes("ひのき") || text.includes("ヒノキ")) targetType = "ヒノキ";
+            else if (text.includes("たしん") || text.includes("他針")) targetType = "他針";
+            else if (text.includes("たこう") || text.includes("他広")) targetType = "他広";
+            else {
+                currentSettings.customTrees.forEach(ct => {
+                    if (text.includes(ct.toLowerCase())) {
+                        targetType = ct;
+                    }
+                });
+            }
+            
+            if(targetType){
+                document.getElementById('treeType').value = targetType;
+                speakText(targetType);
+                matched = true;
+            }
+        } 
+        else if (text.includes("直径") || text.includes("ちょっけい")) {
+            const n = getNum(text); 
+            if(n) {
+                document.getElementById('dbh').value = n;
+                speakText(n + "センチ");
+            }
+        }
+        else if (text.includes("高さ") || text.includes("たかさ")) {
+            const n = getNum(text); 
+            if(n) {
+                document.getElementById('height').value = n;
+                speakText(n + "メートル");
+            }
+        }
+        else if (text.includes("材質") || text.includes("ざいしつ")) {
+            let q = "";
+            if (text.includes("a") || text.includes("エー")) q = "A";
+            else if (text.includes("b") || text.includes("ビー")) q = "B";
+            else if (text.includes("c") || text.includes("シー")) q = "C";
+            
+            if(q){
+                document.getElementById('quality').value = q;
+                speakText("材質 " + q);
+            }
+        }
+        else if (text.includes("メモ") || text.includes("めも")) {
+            let val = text.replace(/メモ|めも/, "").trim();
+            document.getElementById('memo').value = val;
+            speakText("メモ " + val);
+        }
+    }
+
+    function handleSave() {
+        var p = document.getElementById('plotNo').value;
+        var t = document.getElementById('treeNo').value;
+        var d = document.getElementById('dbh').value;
+        var editId = document.getElementById('editId').value;
+
+        if(!p || !t || !d) {
+            alert("入力不足（プロット・立木・直径）");
+            speakText("入力不足です");
+            return;
+        }
+
+        var list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        var record = {
+            plotNo: p, treeNo: t, 
+            treeType: document.getElementById('treeType').value,
+            dbh: d, height: document.getElementById('height').value,
+            quality: document.getElementById('quality').value,
+            memo: document.getElementById('memo').value,
+            id: editId ? editId : String(Date.now())
+        };
+
+        if (editId) {
+            var index = list.findIndex(item => String(item.id) === String(editId));
+            if (index !== -1) list[index] = record;
+        } else {
+            list.unshift(record);
+        }
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+        resetForm();
+        renderTable();
+        
+        document.getElementById('plotNo').value = p; 
+        document.getElementById('treeNo').value = parseInt(t) + 1;
+    }
+
+    function renderTable() {
+        var list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        var tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        list.forEach(item => {
+            var row = document.createElement('tr');
+            row.innerHTML = `<td>${item.plotNo}</td><td>${item.treeNo}</td><td>${item.treeType}</td><td>${item.dbh}</td><td>${item.height}</td><td>${item.quality || 'A'}</td><td>${item.memo || ''}</td>` +
+                `<td class="action-btns"><button class="edit-btn" onclick="startEdit('${item.id}')">修正</button><button class="del-btn" onclick="handleDelete('${item.id}')">削除</button></td>`;
+            tbody.appendChild(row);
+        });
+    }
+
+    function startEdit(id) {
+        var list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        var target = list.find(item => String(item.id) === String(id));
+        if(target) {
+            document.getElementById('editId').value = target.id;
+            document.getElementById('plotNo').value = target.plotNo;
+            document.getElementById('treeNo').value = target.treeNo;
+            document.getElementById('treeType').value = target.treeType;
+            document.getElementById('dbh').value = target.dbh;
+            document.getElementById('height').value = target.height;
+            document.getElementById('quality').value = target.quality || 'A';
+            document.getElementById('memo').value = target.memo || '';
+            document.getElementById('formTitle').innerText = "【修正中】";
+            document.getElementById('saveBtn').innerText = "更新";
+            document.getElementById('cancelBtn').style.display = "inline-block";
+            window.scrollTo(0,0);
+        }
+    }
+
+    function handleDelete(id) {
+        if(!confirm("削除しますか？")) return;
+        var list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        var newList = list.filter(item => String(item.id) !== String(id));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+        renderTable();
+    }
+
+    function handleAllClear() {
+        if(!confirm("全データを消去しますか？")) return;
+        localStorage.removeItem(STORAGE_KEY);
+        renderTable();
+    }
+
+    function resetForm() {
+        document.getElementById('editId').value = "";
+        document.getElementById('dbh').value = "";
+        document.getElementById('height').value = "";
+        document.getElementById('memo').value = "";
+        document.getElementById('formTitle').innerText = "立木調査 v2.4";
+        document.getElementById('saveBtn').innerText = "保存";
+        document.getElementById('cancelBtn').style.display = "none";
+    }
+
+    function handleExport() {
+        var list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        if(list.length === 0) { alert("データがありません"); return; }
+        
+        var csv = "\ufeffプロット番号,立木番号,樹種,胸高直径(cm),樹高(m),材質,備考\n";
+        list.forEach(item => {
+            csv += `${item.plotNo},${item.treeNo},${item.treeType},${item.dbh},${item.height},${item.quality || 'A'},${(item.memo || "").replace(/,/g, " ")}\n`;
+        });
+
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        
+        var now = new Date();
+        var yyyy = now.getFullYear();
+        var mm = String(now.getMonth() + 1).padStart(2, '0');
+        var dd = String(now.getDate()).padStart(2, '0');
+        var hh = String(now.getHours()).padStart(2, '0');
+        var min = String(now.getMinutes()).padStart(2, '0');
+        
+        // ファイル名を指示通りに変更
+        var filename = `立木調査-${yyyy}${mm}${dd}-${hh}${min}.csv`;
+
+        a.href = url;
+        a.download = filename;
+        a.click();
+        
+        setTimeout(() => window.URL.revokeObjectURL(url), 100);
+    }
+</script>
+</body>
+</html>
+
+
